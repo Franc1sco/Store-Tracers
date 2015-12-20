@@ -23,14 +23,9 @@ new Handle:g_tracersNameIndex = INVALID_HANDLE;
 
 new g_clientTracers[MAXPLAYERS+1];
 
-new Handle:g_hConfig = INVALID_HANDLE;
-new Handle:g_hPosition = INVALID_HANDLE;
-
 new g_iTeam[MAXPLAYERS + 1];
 new bool:g_bAlive[MAXPLAYERS + 1];
 new bool:g_bFake[MAXPLAYERS + 1];
-
-new bool:g_bValidSDK;
 
 public Plugin:myinfo =
 {
@@ -55,17 +50,6 @@ public OnPluginStart()
 	HookEvent("player_death", Event_OnPlayerDeath, EventHookMode_Pre);
 
 	Store_RegisterItemType("tracers", OnEquip, LoadItem);
-
-	g_hConfig = LoadGameConfigFile("store-tracers.gamedata");
-	if(g_hConfig == INVALID_HANDLE)
-		SetFailState("LoadGameConfigFile(\"store-tracers.gamedata\") doesn't appear to exist or is invalid.");
-	else
-	{
-		StartPrepSDKCall(SDKCall_Player);
-		PrepSDKCall_SetFromConf(g_hConfig, SDKConf_Virtual, "Weapon_ShootPosition");
-		PrepSDKCall_SetReturnInfo(SDKType_Vector, SDKPass_ByValue);
-		g_hPosition = EndPrepSDKCall();
-	}
 }
 
 /**
@@ -175,46 +159,27 @@ public Action:Event_OnBulletImpact(Handle:event,const String:name[],bool:dontBro
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (g_clientTracers[client] != -1)
 	{
-		decl Float:_fOrigin[3], Float:_fImpact[3], Float:_fDifference[3];
-		if(g_bValidSDK)
-		{
-			SDKCall(g_hPosition, client, _fOrigin);
-			_fImpact[0] = GetEventFloat(event, "x");
-			_fImpact[1] = GetEventFloat(event, "y");
-			_fImpact[2] = GetEventFloat(event, "z");
+		decl Float:fOrigin[3], Float:fImpact[3], Float:fDifference[3];
+		GetClientEyePosition(client, fOrigin);
+		fImpact[0] = GetEventFloat(event, "x");
+		fImpact[1] = GetEventFloat(event, "y");
+		fImpact[2] = GetEventFloat(event, "z");
 
-			new Float:_fDistance = GetVectorDistance(_fOrigin, _fImpact);
-			new Float:_fPercent = (0.4 / (_fDistance / 100.0));
+		new Float:fDistance = GetVectorDistance(fOrigin, fImpact);
+		new Float:fPercent = (0.4 / (fDistance / 100.0));
 
-			_fDifference[0] = _fOrigin[0] + ((_fImpact[0] - _fOrigin[0]) * _fPercent);
-			_fDifference[1] = _fOrigin[1] + ((_fImpact[1] - _fOrigin[1]) * _fPercent) - 0.08;
-			_fDifference[2] = _fOrigin[2] + ((_fImpact[2] - _fOrigin[2]) * _fPercent);
-		}
-		else
-		{
-			GetClientEyePosition(client, _fDifference);
-			GetClientEyeAngles(client, _fOrigin);
-			new Handle:_hTemp = TR_TraceRayFilterEx(_fDifference, _fOrigin, MASK_SHOT_HULL, RayType_Infinite, Bool_TraceFilterPlayers);
-			
-			if(TR_DidHit(_hTemp))
-				TR_GetEndPosition(_fImpact, _hTemp);
-			else
-			{
-				CloseHandle(_hTemp);
-				return Plugin_Continue;
-			}
-
-			CloseHandle(_hTemp);
-		}
-
+		fDifference[0] = fOrigin[0] + ((fImpact[0] - fOrigin[0]) * fPercent);
+		fDifference[1] = fOrigin[1] + ((fImpact[1] - fOrigin[1]) * fPercent) - 0.08;
+		fDifference[2] = fOrigin[2] + ((fImpact[2] - fOrigin[2]) * fPercent);
+		
 		new tracer = g_clientTracers[client];
 
 		new color[4];
 		for (new i = 0; i < 4; i++)
 			color[i] = g_tracers[tracer][TracerColor][i];
 
-		TE_SetupBeamPoints(_fDifference, 
-			_fImpact, 
+		TE_SetupBeamPoints(fOrigin, 
+			fImpact, 
 			g_tracers[tracer][TracerModelIndex], 
 			0, 
 			0, 
